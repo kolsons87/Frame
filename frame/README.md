@@ -12,7 +12,7 @@ The full audit, architecture, roadmap and open decisions live in the
 
 | Path | What | Status |
 | --- | --- | --- |
-| `prototype/` | Browser prototype, concept 02 (the reference UI). `v1/` is the original concept, untouched. | 6 bugs fixed; UI unchanged |
+| `prototype/` | The app (browser version of concept 02), app-only shell. `v1/` and `Frame-UI-UX-Handoff.md` are ChatGPT's originals, not linked from the app | 6 bugs fixed |
 | `prototype/tests/regression.mjs` | Browser checks for each fixed bug + pixel comparison against the original | 13 checks |
 | `packages/ranking/` | Comparison ranking: insertion session (which titles to ask about) + Bradley–Terry scoring with reaction priors | 25 tests |
 | `supabase/migrations/` | Postgres/Supabase schema: 23 tables, row-level security, RPCs (`set_list_state`, `record_ranking`, `set_favorite`, `my_calendar`, `friends_feed`) | Not applied anywhere |
@@ -30,13 +30,15 @@ npm run test:prototype    # browser regression checks (needs Chromium; set CHROM
 npm run preview           # prototype at http://localhost:8000
 ```
 
-## View the prototype online (GitHub Pages)
+## Hosting (Netlify)
 
-`.github/workflows/pages.yml` publishes `prototype/` on every push to `main`.
-One-time setup: **Settings → Pages → Source: GitHub Actions**. The site is at
-`https://<username>.github.io/<repo>/`. On GitHub's free plan this requires a
-public repo, and a Pages site is public either way. Ratings and lists you
-change on the site are saved only in that browser.
+`prototype/` is a static site: no build step. In Netlify set Base directory and
+Publish directory to the folder that contains `index.html` (`prototype`, or
+`frame/prototype` if the repo has an extra top-level folder) and leave the
+build command empty. The page is app-only: no intro text or phone frame, full
+screen on phones, a phone-width column on desktop. On iPhone, Safari → Share →
+Add to Home Screen opens it full screen like an app. Data is sample data,
+saved only in that browser.
 
 ## Ranking in one paragraph
 

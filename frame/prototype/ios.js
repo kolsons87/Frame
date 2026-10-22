@@ -104,8 +104,7 @@ function profile() {
   let n = state.ranks.length;
   return (
     `<div class="profilehero"><span class="avatar">KO</span><h1>Kyle Olson</h1><p>A soft spot for a good story.</p><div class="stats"><div><b>${n}</b><small>Titles ranked</small></div><div><b>${Object.values(state.progress).reduce((a, b) => a + b, 0)}</b><small>Episodes watched</small></div><div><b>${state.later.length}</b><small>Saved for later</small></div></div></div><div class="profilehead"><h2>Your taste, in order.</h2><button class="soft" onclick="pickRank()">＋ Rank</button></div><p class="rankintro">Your comparisons find the score.<br>Your reaction gives it color.</p>` +
-    oldRanks().replace(/^.*?(?=<div class="toolbar">)/s, "") +
-    `<a class="mobile-brief" href="Frame-UI-UX-Handoff.md" download>Download the UI/UX handoff ↗</a>`
+    oldRanks().replace(/^.*?(?=<div class="toolbar">)/s, "")
   );
 }
 // Assigned (not declared) on purpose: a `function discover()` declaration is

@@ -1,5 +1,5 @@
 // Browser regression checks for the prototype bugs found in the audit.
-// Usage: node prototype/tests/regression.mjs <dir-with-index.html> [--baseline <original-dir>]
+// Usage: node prototype/tests/regression.mjs <dir-with-index.html>
 // Requires the `playwright` package and a Chromium (set CHROMIUM_PATH if not bundled).
 import { chromium } from "playwright";
 import http from "node:http";
@@ -109,21 +109,6 @@ async function page(url = "http://127.0.0.1:8811/", tz = "America/Chicago") {
   const text = await pg.evaluate(() => document.querySelector("#content").innerText);
   check("Discover tab opens without errors", errors.length === 0 && /Search|one more episode/i.test(text), errors.join("; "));
   await ctx.close();
-}
-// 7. UI unchanged: every tab renders pixel-identically to the baseline.
-if (baseline) {
-  // Discover is excluded: it never rendered in the original.
-  for (const tab of ["Calendar", "My Watchlist", "Friends", "Profile"]) {
-    const shots = [];
-    for (const url of ["http://127.0.0.1:8811/", "http://127.0.0.1:8812/"]) {
-      const { ctx, pg } = await page(url);
-      await pg.evaluate((t) => go(t), tab);
-      await pg.waitForTimeout(150);
-      shots.push(await pg.screenshot({ fullPage: true }));
-      await ctx.close();
-    }
-    check(`UI identical to baseline: ${tab}`, shots[0].equals(shots[1]));
-  }
 }
 await browser.close();
 servers.forEach((s) => s.close());
