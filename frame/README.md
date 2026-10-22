@@ -13,7 +13,7 @@ The full audit, architecture, roadmap and open decisions live in the
 | Path | What | Status |
 | --- | --- | --- |
 | `prototype/` | The app (browser version of concept 02), app-only shell. `v1/` and `Frame-UI-UX-Handoff.md` are ChatGPT's originals, not linked from the app | 6 bugs fixed |
-| `prototype/tests/regression.mjs` | Browser checks for each fixed bug + pixel comparison against the original | 13 checks |
+| `prototype/tests/` | `regression.mjs`: checks for each fixed bug. `editing.mjs`: add/edit/delete/backup flow | 9 + 15 checks |
 | `packages/ranking/` | Comparison ranking: insertion session (which titles to ask about) + Bradley–Terry scoring with reaction priors | 25 tests |
 | `supabase/migrations/` | Postgres/Supabase schema: 23 tables, row-level security, RPCs (`set_list_state`, `record_ranking`, `set_favorite`, `my_calendar`, `friends_feed`) | Not applied anywhere |
 | `supabase/tests/` | Runs the migration on in-process Postgres 16 (PGlite) as real signed-in users | 14 tests |
@@ -35,7 +35,9 @@ npm run preview           # prototype at http://localhost:8000
 `prototype/` is a static site: no build step. In Netlify set Base directory and
 Publish directory to the folder that contains `index.html` (`prototype`, or
 `frame/prototype` if the repo has an extra top-level folder) and leave the
-build command empty. The page is app-only: no intro text or phone frame, full
+build command empty. You can add, edit and delete titles, rankings and
+episode progress; the bell button has backup/restore, start fresh and
+restore-sample-data. The page is app-only: no intro text or phone frame, full
 screen on phones, a phone-width column on desktop. On iPhone, Safari → Share →
 Add to Home Screen opens it full screen like an app. Data is sample data,
 saved only in that browser.

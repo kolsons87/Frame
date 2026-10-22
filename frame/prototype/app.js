@@ -1,4 +1,5 @@
-const catalog = [
+// Sample titles seed a new install. Your own list lives in state.titles.
+const SAMPLE_TITLES = [
   {
     id: "severance",
     title: "Severance",
@@ -126,6 +127,7 @@ const catalog = [
   },
 ];
 const initial = {
+  titles: SAMPLE_TITLES,
   watching: ["severance", "bear", "white"],
   later: ["silo", "odyssey", "past"],
   progress: { severance: 6, bear: 4, white: 2 },
@@ -151,10 +153,11 @@ const REACTION_NAMES = ["Bad", "Meh", "Fine", "Good", "Great"];
 function normalizeState(raw) {
   const base = structuredClone(initial);
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return base;
-  const known = new Set(catalog.map((x) => x.id));
+  const titles = normalizeTitles(raw.titles) ?? base.titles;
+  const known = new Set(titles.map((x) => x.id));
   const ids = (v) =>
     Array.isArray(v) ? [...new Set(v.filter((id) => known.has(id)))] : null;
-  const s = {};
+  const s = { titles };
   s.watching = ids(raw.watching) ?? base.watching;
   // Watching and Watch Later are mutually exclusive; Watching wins.
   s.later = (ids(raw.later) ?? base.later).filter(
@@ -162,7 +165,7 @@ function normalizeState(raw) {
   );
   s.progress = {};
   for (const [id, n] of Object.entries(raw.progress ?? base.progress)) {
-    const x = catalog.find((c) => c.id === id);
+    const x = titles.find((c) => c.id === id);
     if (x?.episodes && Number.isInteger(n) && n > 0)
       s.progress[id] = Math.min(n, x.episodes);
   }
@@ -203,12 +206,56 @@ function normalizeState(raw) {
       : base.notifications;
   return s;
 }
+const TITLE_ID = /^[a-z0-9-]{1,40}$/;
+const clip = (v, n) => (typeof v === "string" ? v.trim().slice(0, n) : "");
+// Titles are user data now: validate each field so nothing malformed (or a
+// hand-edited backup) can break rendering. IDs stay slug-safe because they
+// are used inside click handlers.
+function normalizeTitles(list) {
+  if (!Array.isArray(list)) return null;
+  const seen = new Set();
+  return list
+    .filter((t) => t && TITLE_ID.test(t.id) && !seen.has(t.id) && seen.add(t.id))
+    .map((t) => {
+      const type = t.type === "Show" ? "Show" : "Movie";
+      const x = {
+        id: t.id,
+        title: clip(t.title, 100) || "Untitled",
+        type,
+        service: clip(t.service, 40),
+        genre: clip(t.genre, 60),
+        color: /^#[0-9a-f]{6}$/i.test(t.color) ? t.color : "#6d6a7c",
+        art: clip(t.art, 2) || "✦",
+        reason: clip(t.reason, 140),
+      };
+      if (type === "Show")
+        x.episodes = Math.min(500, Math.max(1, Number.parseInt(t.episodes, 10) || 10));
+      if (t.custom) x.custom = true;
+      return x;
+    });
+}
+// HTML-escape for anything a person typed. Rendering builds HTML strings, so
+// display copies of titles are escaped once here; raw values stay in state.
+const esc = (v) =>
+  String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+let catalog = [];
+function syncCatalog() {
+  catalog = state.titles.map((t) => ({
+    ...t,
+    title: esc(t.title),
+    service: esc(t.service),
+    genre: esc(t.genre),
+    reason: esc(t.reason),
+    rawTitle: t.title,
+  }));
+}
 let state;
 try {
   state = normalizeState(JSON.parse(localStorage.getItem(STORAGE_KEY)));
 } catch {
   state = structuredClone(initial);
 }
+syncCatalog();
 let page = "Calendar",
   view = "Month",
   month = 9,
@@ -395,7 +442,7 @@ function start(id) {
   toast("Added to Watching");
 }
 function cards(list) {
-  return `<div class="cards">${list.map((x) => `<article class="card"><div role="button" tabindex="0" aria-label="View ${x.title}" onclick="detail('${x.id}')" onkeydown="if(event.key==='Enter')detail('${x.id}')">${art(x)}</div><h3>${x.title}</h3><small>${x.type} · ${x.genre}</small><p>${x.reason}</p><button class="save" onclick="save('${x.id}')">${state.later.includes(x.id) ? "✓ Saved" : "＋ Watch Later"}</button></article>`).join("")}</div>`;
+  return `<div class="cards">${list.map((x) => `<article class="card"><div role="button" tabindex="0" aria-label="View ${x.title}" onclick="detail('${x.id}')" onkeydown="if(event.key==='Enter')detail('${x.id}')">${art(x)}</div><h3>${x.title}</h3><small>${x.type}${x.genre ? " · " + x.genre : ""}</small><p>${x.reason}</p><button class="save" onclick="save('${x.id}')">${state.later.includes(x.id) ? "✓ Saved" : "＋ Watch Later"}</button></article>`).join("")}</div>`;
 }
 function watch() {
   return (
@@ -464,21 +511,21 @@ function discover() {
     list = list.filter((x) => x.id === "odyssey");
   if (query)
     list = catalog.filter((x) =>
-      x.title.toLowerCase().includes(query.toLowerCase()),
+      x.rawTitle.toLowerCase().includes(query.toLowerCase()),
     );
   return (
     head(
       query ? "Search results" : "Your next “one more episode.”",
       query
-        ? "Search the sample catalog."
+        ? "Search your titles."
         : "Find something worth making time for.",
     ) +
-    (!query
+    (!query && item("silo")
       ? `<div class="hero"><div><div class="eyebrow">Picked for your taste · Demo</div><h2>There’s more beneath the surface.</h2><p>If you loved the uneasy mysteries of Severance, put Silo on your list.</p><button onclick="detail('silo')">Explore Silo →</button></div><div class="heroart">◎</div></div><div class="toolbar"><div class="chips">${["For you", "Movies", "Shows", "Coming soon"].map((f) => `<button class="${discoverFilter === f ? "active" : ""}" onclick="discoverFilter='${f}';render()">${f}</button>`).join("")}</div><small>Curated examples, not live recommendations</small></div>`
       : "") +
     (list.length
       ? cards(list)
-      : '<div class="empty">No sample titles match. Live catalog search comes with the data connection.</div>')
+      : `<div class="empty">${query ? `Nothing called “${esc(query)}” yet.` : "No titles here yet."}<br><br><button class="primary" onclick="titleForm('', true)">＋ Add ${query ? "it" : "a title"}</button></div>`)
   );
 }
 function rankings() {
@@ -491,13 +538,13 @@ function rankings() {
       "Built from comparisons. Entirely yours.",
       `<button class="primary" onclick="pickRank()">＋ Rank a title</button>`,
     ) +
-    `<div class="toolbar"><div class="tabs">${["Movie", "Show"].map((t) => `<button class="${rankType === t ? "active" : ""}" onclick="rankType='${t}';render()">${t === "Movie" ? "Movies" : "TV shows"}</button>`).join("")}</div><small>0.0–10.0 · ${rs.length} ranked</small></div><div class="panel">${rs.map((r, i) => `<div class="rankrow"><span class="place">${i + 1}</span>${art(item(r.id), "tiny")}<div class="info"><h3>${item(r.id).title}</h3><small>${r.reaction} ${r.provisional ? "· Provisional" : ""}</small></div><span class="score ${tone(r.reaction)}">${r.score.toFixed(1)}</span><button class="plain" onclick="rank('${r.id}')" aria-label="Rerank ${item(r.id).title}">↗</button></div>`).join("")}</div><div class="legend"><span style="color:var(--green)">● Great / Good</span><span style="color:var(--yellow)">● Fine / Meh</span><span style="color:var(--red)">● Bad</span></div><p class="footer">Your reaction sets the color. Comparisons determine placement. This prototype interpolates between sample scores; production calibration is still to be built.</p>`
+    `<div class="toolbar"><div class="tabs">${["Movie", "Show"].map((t) => `<button class="${rankType === t ? "active" : ""}" onclick="rankType='${t}';render()">${t === "Movie" ? "Movies" : "TV shows"}</button>`).join("")}</div><small>0.0–10.0 · ${rs.length} ranked</small></div><div class="panel">${rs.map((r, i) => `<div class="rankrow"><span class="place">${i + 1}</span>${art(item(r.id), "tiny")}<div class="info" role="button" tabindex="0" onclick="detail('${r.id}')" style="cursor:pointer"><h3>${item(r.id).title}</h3><small>${r.reaction} ${r.provisional ? "· Provisional" : ""}</small></div><span class="score ${tone(r.reaction)}">${r.score.toFixed(1)}</span><button class="plain" onclick="rank('${r.id}')" aria-label="Rerank ${item(r.id).title}">↗</button></div>`).join("")}</div><div class="legend"><span style="color:var(--green)">● Great / Good</span><span style="color:var(--yellow)">● Fine / Meh</span><span style="color:var(--red)">● Bad</span></div><p class="footer">Your reaction sets the color. Comparisons determine placement. This prototype interpolates between sample scores; production calibration is still to be built.</p>`
   );
 }
 function pickRank() {
   show(
     "What did you watch?",
-    `<p class="muted">Pick a sample title to try the comparison flow.</p><div class="buttonrow">${catalog.map((x) => `<button onclick="rank('${x.id}')">${x.title}</button>`).join("")}</div>`,
+    `<p class="muted">Pick a title, or add one that isn't here yet.</p><div class="buttonrow"><button class="primary" onclick="titleForm()">＋ Add a new title</button>${catalog.map((x) => `<button onclick="rank('${x.id}')">${x.title}</button>`).join("")}</div>`,
   );
 }
 function rank(id) {
@@ -597,7 +644,7 @@ function favorite(id) {
 function detail(id) {
   let x = item(id),
     r = state.ranks.find((r) => r.id === id);
-  let body = `<div class="detailtop">${art(x, "medium")}<div><div class="eyebrow">${x.type} · ${x.genre}</div><h1>${x.title}</h1><p class="muted">${x.reason}</p>${r ? `<span class="score ${tone(r.reaction)}">${r.score.toFixed(1)}</span> <small>Your ranking · ${r.reaction}</small>` : ""}</div></div><div class="buttonrow"><button class="primary" onclick="save('${id}');detail('${id}')">${state.later.includes(id) ? "✓ Saved to Watch Later" : "＋ Watch Later"}</button>${x.type === "Show" && !state.watching.includes(id) ? `<button onclick="start('${id}')">Start watching</button>` : ""}<button onclick="rank('${id}')">${r ? "Rerank" : "Rank"} ${x.type.toLowerCase()}</button></div>`;
+  let body = `<div class="detailtop">${art(x, "medium")}<div><div class="eyebrow">${x.type}${x.genre ? " · " + x.genre : ""}</div><h1>${x.title}</h1><p class="muted">${x.reason}</p>${r ? `<span class="score ${tone(r.reaction)}">${r.score.toFixed(1)}</span> <small>Your ranking · ${r.reaction}</small>` : ""}</div></div><div class="buttonrow"><button class="primary" onclick="save('${id}');detail('${id}')">${state.later.includes(id) ? "✓ Saved to Watch Later" : "＋ Watch Later"}</button>${x.type === "Show" && !state.watching.includes(id) ? `<button onclick="start('${id}')">Start watching</button>` : ""}<button onclick="rank('${id}')">${r ? "Rerank" : "Rank"} ${x.type.toLowerCase()}</button></div>`;
   if (x.type === "Movie") {
     let f = state.follows[id] || {};
     body += `<div class="sectionhead"><h2>Follow the release</h2></div><label class="check"><input type="checkbox" ${f.theater ? "checked" : ""} onchange="follow('${id}','theater',this.checked)"> Theater release ${id === "odyssey" ? "<small>Oct 23 · example</small>" : ""}</label><label class="check"><input type="checkbox" ${f.streaming ? "checked" : ""} onchange="follow('${id}','streaming',this.checked)"> Subscription streaming ${id === "odyssey" ? "<small>Dec 18 · example</small>" : ""}</label><label class="check"><input type="checkbox" ${f.rental ? "checked" : ""} onchange="follow('${id}','rental',this.checked)"> Digital rental / purchase</label><small>${id === "odyssey" ? "Demo dates show how separate releases appear on the calendar." : "No upcoming dates in this sample. Following saves your preference for when a date is announced."}</small>`;
@@ -616,6 +663,7 @@ function detail(id) {
       "",
     )}</div><div class="legend"><span>Great ↑</span><span>Bad ↓</span><span>Gray = unrated / unwatched</span></div><button style="margin-top:16px" onclick="favorites('${id}')">♡ My favorite episodes</button>`;
   }
+  body += manageSection(id);
   show(x.title, body);
 }
 function follow(id, type, on) {
@@ -678,7 +726,7 @@ function friends() {
       "Good taste travels.",
       "See what your people are watching, loving, and saving.",
     ) +
-    `<div class="layout"><div class="feed">${posts.map((p, i) => `<article class="panel feedpost"><div class="feedtitle"><span class="avatar" style="background:${["#e5dccb", "#dce6dc", "#dcdff0"][i]}">${p.initial}</span><div style="flex:1"><b>${p.person}</b> <span class="muted">${p.action}</span><br><small>${p.time} · Sample friend</small></div><span>↗</span></div><div class="feedmovie">${art(item(p.id), "medium")}<div><small>${item(p.id).type}</small><h2>${item(p.id).title}</h2>${p.score ? `<span class="score">${p.score}</span> <small>Great · #4 in their movies</small>` : '<span class="pill">' + (i === 1 ? "Started Season 1" : "On their list") + "</span>"}<p>${p.text}</p></div></div><div class="feedactions"><button class="plain" onclick="like(${i})">${state.likes.includes(i) ? "♥ Liked" : "♡ Like"} · ${[12, 8, 5][i] + (state.likes.includes(i) ? 1 : 0)}</button><button class="plain" onclick="save('${p.id}')">${state.later.includes(p.id) ? "✓ Saved" : "＋ Save to Watch Later"}</button><button class="plain" onclick="detail('${p.id}')">View title →</button></div></article>`).join("")}</div><aside class="rail"><div class="panel rightbox"><div class="eyebrow">Your circle</div><h2 style="margin-top:10px">A shared love of stories.</h2><p class="muted">Friend activity is illustrative in this prototype. Accounts and following come next.</p><div class="mini"><span class="avatar">AM</span><div><b>Alex Morgan</b><br><small>Also loves sci-fi</small></div></div><div class="mini"><span class="avatar">JC</span><div><b>Jamie Chen</b><br><small>Mystery enthusiast</small></div></div></div><div class="note"><b>Spoilers stay backstage.</b><p>Episode reactions stay inside each show, behind your watch progress.</p></div></aside></div>`
+    `<div class="layout"><div class="feed">${posts.filter((p) => item(p.id)).length ? "" : '<div class="empty">No friend activity yet.</div>'}${posts.map((p, i) => !item(p.id) ? "" : `<article class="panel feedpost"><div class="feedtitle"><span class="avatar" style="background:${["#e5dccb", "#dce6dc", "#dcdff0"][i]}">${p.initial}</span><div style="flex:1"><b>${p.person}</b> <span class="muted">${p.action}</span><br><small>${p.time} · Sample friend</small></div><span>↗</span></div><div class="feedmovie">${art(item(p.id), "medium")}<div><small>${item(p.id).type}</small><h2>${item(p.id).title}</h2>${p.score ? `<span class="score">${p.score}</span> <small>Great · #4 in their movies</small>` : '<span class="pill">' + (i === 1 ? "Started Season 1" : "On their list") + "</span>"}<p>${p.text}</p></div></div><div class="feedactions"><button class="plain" onclick="like(${i})">${state.likes.includes(i) ? "♥ Liked" : "♡ Like"} · ${[12, 8, 5][i] + (state.likes.includes(i) ? 1 : 0)}</button><button class="plain" onclick="save('${p.id}')">${state.later.includes(p.id) ? "✓ Saved" : "＋ Save to Watch Later"}</button><button class="plain" onclick="detail('${p.id}')">View title →</button></div></article>`).join("")}</div><aside class="rail"><div class="panel rightbox"><div class="eyebrow">Your circle</div><h2 style="margin-top:10px">A shared love of stories.</h2><p class="muted">Friend activity is illustrative in this prototype. Accounts and following come next.</p><div class="mini"><span class="avatar">AM</span><div><b>Alex Morgan</b><br><small>Also loves sci-fi</small></div></div><div class="mini"><span class="avatar">JC</span><div><b>Jamie Chen</b><br><small>Mystery enthusiast</small></div></div></div><div class="note"><b>Spoilers stay backstage.</b><p>Episode reactions stay inside each show, behind your watch progress.</p></div></aside></div>`
   );
 }
 function like(i) {
@@ -691,13 +739,13 @@ function like(i) {
 function settings() {
   show(
     "Your reminders",
-    `<h2>A calendar that fits your life.</h2><p class="muted">United States · America/Chicago</p><label class="check"><input type="checkbox" ${state.notifications ? "checked" : ""} onchange="state.notifications=this.checked;persist()"> Daily release digest</label><p class="muted">Individual movie release alerts are managed on each title.</p><div class="note"><b>Prototype preview</b><p>Preferences save in this browser. No real notifications are sent and no live release data is connected.</p></div><button style="margin-top:20px" onclick="resetConfirm()">Reset demo changes</button>`,
+    `<h2>A calendar that fits your life.</h2><p class="muted">United States · America/Chicago</p><label class="check"><input type="checkbox" ${state.notifications ? "checked" : ""} onchange="state.notifications=this.checked;persist()"> Daily release digest</label><p class="muted">Individual movie release alerts are managed on each title.</p><div class="note"><b>Prototype preview</b><p>Preferences save in this browser. No real notifications are sent and no live release data is connected.</p></div><div class="sectionhead"><h2>Your data</h2></div><p class="muted">Everything is saved in this browser on this device only. Back it up before clearing browser data or switching phones.</p><div class="buttonrow"><button class="primary" onclick="exportData()">Back up my data</button><button onclick="document.querySelector('#import-file').click()">Restore from backup</button><input id="import-file" type="file" accept="application/json,.json" hidden onchange="importData(this.files[0])"></div><div class="buttonrow"><button onclick="startFreshConfirm()">Start fresh (empty)</button><button onclick="resetConfirm()">Restore sample data</button></div>`,
   );
 }
 function resetConfirm() {
   show(
-    "Reset this demo?",
-    `<p>This resets your local sample watchlists, ratings, and preferences.</p><button class="primary" onclick="state=structuredClone(initial);persist();document.querySelector('#modal').close();render();toast('Demo reset')">Reset demo</button>`,
+    "Restore sample data?",
+    `<p>This replaces everything with the original 12 sample titles and their sample lists and rankings. Your own titles and rankings will be lost unless you back them up first.</p><button class="primary" onclick="state=structuredClone(initial);syncCatalog();persist();document.querySelector('#modal').close();render();toast('Sample data restored')">Restore sample data</button>`,
   );
 }
 function render() {
@@ -745,3 +793,169 @@ $("#modal").addEventListener("click", (e) => {
   }
 });
 render();
+
+// ───────────── Your data: add, edit, remove, back up ─────────────
+const TITLE_COLORS = ["#315752", "#3b5f83", "#8c9657", "#ac693d", "#526565", "#746d4e", "#355b70", "#8b7950", "#5d7378", "#7b8065"];
+const rawTitle = (id) => state.titles.find((t) => t.id === id);
+
+// Buttons at the bottom of a title's detail sheet.
+function manageSection(id) {
+  const x = item(id),
+    r = state.ranks.find((r) => r.id === id),
+    watching = state.watching.includes(id),
+    p = state.progress[id] || 0;
+  let html = `<div class="sectionhead"><h2>Manage</h2></div>`;
+  if (x.type === "Show" && (watching || p > 0))
+    html += `<div class="stepper"><span>Episodes watched</span><button aria-label="One fewer episode" onclick="setProgress('${id}', -1)" ${p <= 0 ? "disabled" : ""}>−</button><b>${p} / ${x.episodes}</b><button aria-label="One more episode" onclick="setProgress('${id}', 1)" ${p >= x.episodes ? "disabled" : ""}>＋</button></div>`;
+  html += `<div class="buttonrow"><button onclick="titleForm('${id}')">Edit details</button>`;
+  if (r) html += `<button onclick="unrank('${id}')">Remove from rankings</button>`;
+  if (watching) html += `<button onclick="stopTracking('${id}')">Stop watching</button>`;
+  html += `<button class="danger" onclick="deleteConfirm('${id}')">Delete title</button></div>`;
+  return html;
+}
+
+// Add (no id) or edit (id) a title. prefill=true uses the current search text.
+function titleForm(id = "", prefill = false) {
+  const t = id ? rawTitle(id) : { title: prefill ? query : "", type: "Movie", service: "", genre: "", episodes: 10 };
+  const v = (s) => esc(s ?? "");
+  show(
+    id ? "Edit title" : "Add a title",
+    `<form class="titleform" onsubmit="event.preventDefault();saveTitle('${id}')">
+      <label>Title<input id="f-title" required maxlength="100" value="${v(t.title)}" autocomplete="off"></label>
+      <label>Type<select id="f-type" onchange="document.querySelector('#f-eps-row').hidden=this.value!=='Show'"><option ${t.type === "Movie" ? "selected" : ""}>Movie</option><option ${t.type === "Show" ? "selected" : ""}>Show</option></select></label>
+      <label id="f-eps-row" ${t.type === "Show" ? "" : "hidden"}>Episodes this season<input id="f-eps" type="number" inputmode="numeric" min="1" max="500" value="${v(t.episodes ?? 10)}"></label>
+      <label>Where to watch <small>optional</small><input id="f-service" maxlength="40" value="${v(t.service)}" placeholder="Netflix, theaters…"></label>
+      <label>Genre or note <small>optional</small><input id="f-genre" maxlength="60" value="${v(t.genre)}" placeholder="Sci-fi · 2h 10m"></label>
+      <div class="buttonrow"><button class="primary" type="submit">${id ? "Save changes" : "Add title"}</button><button type="button" onclick="${id ? `detail('${id}')` : "document.querySelector('#modal').close()"}">Cancel</button></div>
+    </form>`,
+  );
+  setTimeout(() => $("#f-title")?.focus(), 50);
+}
+
+function saveTitle(id) {
+  const name = $("#f-title").value.trim();
+  if (!name) return toast("Give it a title");
+  const type = $("#f-type").value === "Show" ? "Show" : "Movie";
+  const fields = {
+    title: name.slice(0, 100),
+    type,
+    service: $("#f-service").value.trim().slice(0, 40),
+    genre: $("#f-genre").value.trim().slice(0, 60),
+  };
+  if (type === "Show") fields.episodes = Math.min(500, Math.max(1, Number.parseInt($("#f-eps").value, 10) || 10));
+  if (id) {
+    const t = rawTitle(id);
+    if (t.type !== type) {
+      // Movies and shows rank in separate lists, and only shows have episodes.
+      state.ranks = state.ranks.filter((r) => r.id !== id);
+      delete state.progress[id];
+      delete state.reactions[id];
+      delete state.follows[id];
+      state.watching = state.watching.filter((x) => x !== id);
+      toast("Type changed · its ranking and progress were cleared");
+    } else toast("Saved");
+    Object.assign(t, fields);
+    if (type === "Movie") delete t.episodes;
+    if (state.progress[id] > (t.episodes ?? 0)) state.progress[id] = t.episodes;
+  } else {
+    id = "u" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    state.titles.push({ id, ...fields, color: TITLE_COLORS[state.titles.length % TITLE_COLORS.length], art: "✦", reason: "", custom: true });
+    toast("Added");
+  }
+  syncCatalog();
+  persist();
+  render();
+  detail(id);
+}
+
+function unrank(id) {
+  state.ranks = state.ranks.filter((r) => r.id !== id);
+  persist();
+  render();
+  detail(id);
+  toast("Removed from your rankings");
+}
+
+function stopTracking(id) {
+  state.watching = state.watching.filter((x) => x !== id);
+  persist();
+  render();
+  detail(id);
+  toast("Stopped watching · progress and ratings kept");
+}
+
+function setProgress(id, delta) {
+  const x = item(id);
+  state.progress[id] = Math.max(0, Math.min(x.episodes, (state.progress[id] || 0) + delta));
+  if (!state.progress[id]) delete state.progress[id];
+  persist();
+  render();
+  detail(id);
+}
+
+function deleteConfirm(id) {
+  show(
+    "Delete this title?",
+    `<h1>${item(id).title}</h1><p class="muted">This removes it from your lists, rankings, episode progress and ratings. It can't be undone.</p><div class="buttonrow"><button class="danger" onclick="deleteTitle('${id}')">Delete</button><button onclick="detail('${id}')">Cancel</button></div>`,
+  );
+}
+
+function deleteTitle(id) {
+  state.titles = state.titles.filter((t) => t.id !== id);
+  state.watching = state.watching.filter((x) => x !== id);
+  state.later = state.later.filter((x) => x !== id);
+  state.ranks = state.ranks.filter((r) => r.id !== id);
+  delete state.progress[id];
+  delete state.reactions[id];
+  delete state.follows[id];
+  syncCatalog();
+  persist();
+  $("#modal").close();
+  render();
+  toast("Deleted");
+}
+
+function startFreshConfirm() {
+  show(
+    "Start fresh?",
+    `<p>This deletes all titles, lists, rankings and progress, including the samples, so you can enter your own. Back up first if you want to keep anything.</p><div class="buttonrow"><button class="danger" onclick="startFresh()">Delete everything</button><button onclick="settings()">Cancel</button></div>`,
+  );
+}
+
+function startFresh() {
+  state = { ...structuredClone(initial), titles: [], watching: [], later: [], progress: {}, reactions: {}, ranks: [], follows: {}, likes: [], check: true };
+  syncCatalog();
+  persist();
+  $("#modal").close();
+  go("Discover");
+  toast("All clear · add your first title");
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify({ app: "frame", version: 1, exportedAt: new Date().toISOString(), state }, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `frame-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.append(a);
+  a.click();
+  setTimeout(() => (URL.revokeObjectURL(a.href), a.remove()), 1000);
+  toast("Backup saved");
+}
+
+function importData(file) {
+  if (!file) return;
+  file.text().then((text) => {
+    try {
+      const data = JSON.parse(text);
+      if (data?.app !== "frame" || !data.state) throw new Error("not a Frame backup");
+      state = normalizeState(data.state);
+      syncCatalog();
+      persist();
+      $("#modal").close();
+      render();
+      toast(`Restored ${state.titles.length} titles`);
+    } catch {
+      toast("That file isn't a Frame backup");
+    }
+  });
+}

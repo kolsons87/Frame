@@ -112,7 +112,7 @@ function profile() {
 // function and the Discover tab recursed until the stack overflowed.
 discover = function () {
   return (
-    `<div class="search-wrap"><input id="search" class="search" aria-label="Search sample movies and shows" placeholder="Search movies & shows" value="${query.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")}"></div>` +
+    `<div class="search-wrap"><input id="search" class="search" aria-label="Search sample movies and shows" placeholder="Search movies & shows" value="${query.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")}"></div><div class="add-row"><button class="soft" onclick="titleForm()">＋ Add a movie or show</button></div>` +
     oldDiscover()
   );
 };
@@ -196,8 +196,9 @@ function events(y, m) {
       if (
         Number.isInteger(weeks) &&
         weeks >= 0 &&
-        n <= item(id).episodes &&
-        state.watching.includes(id)
+        state.watching.includes(id) &&
+        item(id) &&
+        n <= item(id).episodes
       )
         rows.push({ d, id, kind: "episode", text: `S1 · E${n}` });
     }

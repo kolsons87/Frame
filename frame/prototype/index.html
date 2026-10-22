@@ -44,4 +44,18 @@ body {
     border-right: 1px solid #e5e4df;
   }
 }
+/* Editing your own data */
+.add-row { margin: -6px 0 18px; }
+.add-row button { width: 100%; }
+.titleform { display: grid; gap: 14px; }
+.titleform label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text, #242526); }
+.titleform label small { font-weight: 400; color: #797a77; }
+.titleform label[hidden] { display: none; }
+.titleform input, .titleform select { font: inherit; font-size: 16px; font-weight: 400; padding: 11px 12px; border: 1px solid #e5e4df; border-radius: 12px; background: #fff; color: #242526; width: 100%; box-sizing: border-box; }
+.titleform input:focus, .titleform select:focus { outline: 2px solid #786794; outline-offset: 1px; }
+.stepper { display: flex; align-items: center; gap: 12px; margin: 4px 0 14px; font-size: 14px; }
+.stepper span { flex: 1; }
+.stepper button { width: 44px; height: 44px; border-radius: 22px; font-size: 18px; padding: 0; }
+.stepper b { min-width: 64px; text-align: center; }
+button.danger { color: #b84646; border-color: #e8c9c9; }
 </style></head><body><div class="studio"><div class="device"><div class="shell"><aside class="sidebar"><nav id="nav"></nav></aside><main id="scrollmain"><header class="topbar"><div class="logo"><i></i>frame<span class="brand-dot">●</span></div><button class="profile-button" onclick="settings()" aria-label="Notification preferences"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></button></header><div class="content" id="content"></div></main></div></div></div><dialog id="modal"></dialog><div class="toast" id="toast" role="status"></div><script src="app.js"></script><script src="ios.js"></script></body></html>
