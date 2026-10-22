@@ -1,0 +1,12 @@
+{
+  "name": "@frame/ranking",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Frame comparison-ranking model: raw comparisons in, calibrated 0.0-10.0 scores out.",
+  "type": "module",
+  "main": "src/index.ts",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.ts\""
+  }
+}
